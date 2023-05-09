@@ -157,6 +157,45 @@ def merge_stations():
         
     ds.to_zarr('/tmp/deh/timeseries', consolidated=True)
 
+
+@task
+def consolidate_coords():
+    import itertools
+    import zarr
+
+
+    lfs = LocalFileSystem()
+    target = FSSpecTarget(fs=lfs, root_path='/tmp/deh/timeseries')
+    ds = xr.open_zarr(target.get_mapper(), consolidated=True)
+
+    group = zarr.open(target.get_mapper(), mode="a")
+    # https://github.com/pangeo-forge/pangeo-forge-recipes/issues/214
+    # filter out the dims from the array metadata not in the Zarr group
+    # to handle coordinateless dimensions.
+    coords = list(set(group.keys()) - set(ds.keys()) - set(['time']))
+
+    dims = (dim for dim in coords)
+    for dim in dims:
+        arr = group[dim]
+        attrs = dict(arr.attrs)
+        data = arr[:]
+
+        # This will generally use bulk-delete API calls
+        target.rm(dim, recursive=True)
+
+        new = group.array(
+            dim,
+            data,
+            chunks=arr.shape,
+            dtype=arr.dtype,
+            compressor=arr.compressor,
+            fill_value=arr.fill_value,
+            order=arr.order,
+            filters=arr.filters,
+            overwrite=True,
+        )
+        new.attrs.update(attrs) 
+
 @ task()
 def push_data_to_bucket():
     lfs = LocalFileSystem()
@@ -171,6 +210,7 @@ if __name__ == '__main__':
         stations_list = get_available_stations()
         store = store_station.map(stations_list)
         merged = merge_stations(upstream_tasks=[store])
-        push_data_to_bucket(upstream_tasks=[merged])
+        consolidated = consolidate_coords(upstream_tasks=[merged])
+        #push_data_to_bucket(upstream_tasks=[consolidated])
 
     flow.run()
