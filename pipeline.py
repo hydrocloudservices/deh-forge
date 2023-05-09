@@ -9,6 +9,7 @@ import shutil
 import fsspec
 import itertools
 import zarr
+import datetime
 
 from config import Config
 from models import get_available_stations_from_cehq, StationParserCEHQ
@@ -159,6 +160,8 @@ def merge_stations():
         
     ds.to_zarr('/tmp/deh/timeseries', consolidated=True)
 
+    return [ds.time[0].values, ds.time[-1].values]
+
 
 @task
 def consolidate_coords():
@@ -195,6 +198,17 @@ def consolidate_coords():
         )
         new.attrs.update(attrs) 
 
+@task()
+def post_process_dims(dates):
+    lfs = LocalFileSystem()
+    target = FSSpecTarget(fs=lfs, root_path='/tmp/deh/timeseries')
+
+    store = target.get_mapper()
+    ds = xr.open_zarr(store, consolidated=False, decode_times=False)
+    ds['time'] = pd.date_range(dates[0], dates[1])
+    ds.to_zarr(target.get_mapper(), compute=False, mode='a')
+    zarr.consolidate_metadata(store)
+
 @ task()
 def push_data_to_bucket():
     lfs = LocalFileSystem()
@@ -208,8 +222,9 @@ if __name__ == '__main__':
 
         stations_list = get_available_stations()
         store = store_station.map(stations_list)
-        merged = merge_stations(upstream_tasks=[store])
+        end_date = merged = merge_stations(upstream_tasks=[store])
         consolidated = consolidate_coords(upstream_tasks=[merged])
-        #push_data_to_bucket(upstream_tasks=[consolidated])
+        processed = post_process_dims(end_date, upstream_tasks=[consolidated])
+        push_data_to_bucket(upstream_tasks=[processed])
 
     flow.run()
