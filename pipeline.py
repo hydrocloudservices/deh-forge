@@ -7,6 +7,8 @@ from pangeo_forge_recipes.storage import FSSpecTarget
 from fsspec.implementations.local import LocalFileSystem
 import shutil
 import fsspec
+import itertools
+import zarr
 
 from config import Config
 from models import get_available_stations_from_cehq, StationParserCEHQ
@@ -160,9 +162,6 @@ def merge_stations():
 
 @task
 def consolidate_coords():
-    import itertools
-    import zarr
-
 
     lfs = LocalFileSystem()
     target = FSSpecTarget(fs=lfs, root_path='/tmp/deh/timeseries')
