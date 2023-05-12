@@ -88,10 +88,10 @@ def postprocess(ds, data_type):
     ds['spatial_agg'] = ds.spatial_agg.astype(object)
     ds['time_agg'] = ds.time_agg.astype(object)
     ds['variable'] = ds.variable.astype(object)
-    ds[data_type] = ds[data_type].astype('float32')
+    ds[data_type] = ds[data_type].astype('float32').expand_dims({'variable': [data_type]})
     
 
-    ds[data_type] = ds[data_type].transpose('id', 'time', 'spatial_agg', 'timestep', 'time_agg', 'source')
+    ds[data_type] = ds[data_type].transpose('id', 'time', 'variable','spatial_agg', 'timestep', 'time_agg', 'source')
     
     return ds
 
@@ -140,7 +140,7 @@ def merge_stations():
                     engine='zarr',
                     consolidated=True, 
                     parallel=True)
-    ds = ds.chunk({'id': 1, 'time_agg': 1, 'timestep': 1, 'time': -1, 'spatial_agg': 1})
+    ds = ds.chunk({'id': 1, 'time_agg': 1, 'timestep': 1, 'time': -1, 'spatial_agg': 1, 'variable': 1})
     for var in ds.variables:
         ds[var].encoding.clear()
 
