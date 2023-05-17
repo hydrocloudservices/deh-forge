@@ -58,7 +58,7 @@ def prepare_id_metadata(station):
 def prepare_values(station):
         
     ds_time = pd.DataFrame(columns=['time'],
-             data=pd.date_range('1860-01-01', pd.Timestamp.now())).set_index('time').to_xarray()
+             data=pd.date_range('1860-01-01', '2025-12-31')).set_index('time').to_xarray()
 
     ds_values = station.values.to_xarray().rename({'value': station.data_type})
     ds_values[station.data_type] = ds_values[station.data_type].expand_dims(['id', 'spatial_agg', 'timestep', 'time_agg', 'source'])
